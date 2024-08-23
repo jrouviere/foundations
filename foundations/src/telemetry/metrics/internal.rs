@@ -9,8 +9,9 @@ use prometools::serde::InfoGauge;
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::ops::DerefMut;
+use thread_local::ThreadLocal;
 
-static REGISTRIES: OnceCell<Registries> = OnceCell::new();
+static REGISTRIES: OnceCell<ThreadLocal<Registries>> = OnceCell::new();
 
 #[doc(hidden)]
 pub struct Registries {
@@ -29,11 +30,15 @@ impl Registries {
             }
         };
 
-        REGISTRIES.get_or_init(|| Registries {
-            main: new_registry(&service_info.name_in_metrics, &settings.service_name_format),
-            opt: new_registry(&service_info.name_in_metrics, &settings.service_name_format),
-            info: Default::default(),
-            extra_label,
+        let regs = REGISTRIES.get_or_init(ThreadLocal::new);
+        regs.get_or(|| {
+            println!("new registry init");
+            Registries {
+                main: new_registry(&service_info.name_in_metrics, &settings.service_name_format),
+                opt: new_registry(&service_info.name_in_metrics, &settings.service_name_format),
+                info: Default::default(),
+                extra_label,
+            }
         });
     }
 
@@ -85,11 +90,15 @@ impl Registries {
     }
 
     pub(super) fn get() -> &'static Registries {
-        REGISTRIES.get_or_init(|| Registries {
-            main: new_registry("undefined", &ServiceNameFormat::MetricPrefix),
-            opt: new_registry("undefined", &ServiceNameFormat::MetricPrefix),
-            info: Default::default(),
-            extra_label: None,
+        let regs = REGISTRIES.get_or_init(ThreadLocal::new);
+        regs.get_or(|| {
+            println!("new registry get");
+            Registries {
+                main: new_registry("undefined", &ServiceNameFormat::MetricPrefix),
+                opt: new_registry("undefined", &ServiceNameFormat::MetricPrefix),
+                info: Default::default(),
+                extra_label: None,
+            }
         })
     }
 }

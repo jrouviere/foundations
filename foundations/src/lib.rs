@@ -98,6 +98,8 @@ pub mod reexports_for_macros {
     pub use serde_with;
     #[cfg(feature = "logging")]
     pub use slog;
+
+    pub use thread_local::ThreadLocal;
 }
 
 /// Global memory allocator backed by [jemalloc].

@@ -311,7 +311,13 @@ fn metric_init(foundations: &Path, fn_: &ItemFn) -> proc_macro2::TokenStream {
 
 fn metric_fn(foundations: &Path, metrics_struct: &Ident, fn_: &ItemFn) -> proc_macro2::TokenStream {
     let ItemFn {
-        attrs: FnAttrs { cfg, doc, .. },
+        attrs:
+            FnAttrs {
+                cfg,
+                doc,
+                optional,
+                ctor,
+            },
         fn_token,
         vis: fn_vis,
         ident: metric_name,
@@ -331,9 +337,25 @@ fn metric_fn(foundations: &Path, metrics_struct: &Ident, fn_: &ItemFn) -> proc_m
         quote! { #arg_name #colon_token #arg_ty }
     });
 
+    let metric_init = match ctor {
+        Some(ctor) if args.is_empty() => quote! {
+            #foundations::reexports_for_macros::prometheus_client::metrics::family::MetricConstructor::new_metric(&(#ctor))
+        },
+        Some(ctor) => quote! {
+            #foundations::reexports_for_macros::prometools::serde::Family::new_with_constructor(#ctor)
+        },
+        None => quote! { ::std::default::Default::default() },
+    };
+
     let fn_body = if args.is_empty() {
+        let field_ty = metric_type.to_token_stream();
         quote! {
-            ::std::clone::Clone::clone(&#metrics_struct.#metric_name)
+            static METRIC: #foundations::reexports_for_macros::ThreadLocal<#field_ty> = #foundations::reexports_for_macros::ThreadLocal::new();
+            let met = METRIC.get_or(|| {
+                #metric_init
+            });
+
+            ::std::clone::Clone::clone(&met)
         }
     } else {
         let label_inits = args.iter().map(|arg| {
